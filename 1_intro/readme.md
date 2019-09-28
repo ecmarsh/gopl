@@ -21,4 +21,9 @@ Verb | Spec
 
 - Note new lines and tabs not written by default: use escape sequences or use `%v.`
 
+## Packages
 
+- Packages in stdlib at [https://golang.org/pkg](https://golang.org/pkg)
+- Packages from community at [https://godoc.org](https://godoc.org)
+
+`go doc` is similar to `man`: `$ go doc http.ListenAndServe`

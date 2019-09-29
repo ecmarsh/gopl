@@ -87,7 +87,7 @@
 
 ### Pointers
 
-- Pointers and addresses (* and &) same as in C lang.
+- Pointers and addresses (* and &) same as in C lang. Except cannot do pointer arithmetic.
 
 ### Var Lifetimes
 

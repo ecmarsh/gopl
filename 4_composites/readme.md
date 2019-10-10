@@ -27,17 +27,24 @@ type IntSlice struct {
 ```
 
 - Slices capacity must be able to handle amount of new elements before appending.
+- Using `[#:#]`, unlike python, changes the reference, not create a copy. Use `copy` to copy.
+- To initialize a stack, use `make([]T, initialLen, cap)` or define values with `[]T{vals...}`
 
-### Stack Implementation
+### Maps
 
-```go
-stack := make([]int, initialLen, capacity)
-push := func(stack []int, v int) {
-  stack = append(stack, v)
-}
-pop := func(stack []int) int {
-  top := stack[len(stack)-1]
-  stack = stack[:len(stack)-1]
-  return top
-}
-```
+`m := make(map[kType]vType))`
+
+- Go map is a reference to hash table.
+- All values must be same type. But keys and values can be different types.
+- Keys can be any comparable type.
+- **Note:** Cannot take address of map element as tradeoff of dynamic map is new storage locations may be assigned to support growing or refreshing of elements.
+- Zero value for map is nil.
+- Map values are initialized to zero value, similar to python's `defaultdict`:
+  ```go
+  m := make(map[int]int)
+  m[1] += 1
+  m[1] += 1
+  m[2] += 1
+  // m: {1->2, 2->1}
+  ```
+- Not unusual to use map as a set. For example, a set of strings might be `map[string]bool`, but ensure its being used a set before assuming.

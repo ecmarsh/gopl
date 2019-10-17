@@ -53,78 +53,75 @@ func zero(int, int) int      { return 0 }
   - Note there are _exceptions_ for non-routine errors that occur.
 - As a tradeoff, more control-flow is needed to handle these returns appropriately, which is the point of using ordinary values as the mechanism.
 
-### Error-Handling Strategies
-
-
-5 common strategies for error-handling:
+### 5 Common Error-Handling Strategies
 
 1. Propogate the error: make the failure in a subroutine the failure of the calling routine:
-```go
-resp, err := html.Get(url)
-if err != nil {
-  return nil, err
-}
-// Alternatively, propogate a more specific error.
-doc, err := html.Parse(resp.Body)
-resp.Body.Close()
-if err != nil {
-  return nil, fmt.Errorf("parsing %s as Html: %v", url, err)
-}
-```
-  - Note `fmt.Errorf` formats an error message using `fmt.Sprintf` to return a new error value - very useful for providing a clear causal chain from root problem to overall failure.
-  - As a best practice, message strings should _not_ be capital and _not_ include newlines as error logs often contain many errors. This makes easier to self contain messages when searching using `grep`, etc.
-  - As an example of specificity, if reading many links, files, include the name of link/file etc where the failure occured in the error message.
+    - Note `fmt.Errorf` formats an error message using `fmt.Sprintf` to return a new error value - very useful for providing a clear causal chain from root problem to overall failure.
+    - As a best practice, message strings should _not_ be capital and _not_ include newlines as error logs often contain many errors. This makes easier to self contain messages when searching using `grep`, etc.
+    - As an example of specificity, if reading many links, files, include the name of link/file etc where the failure occured in the error message.
+    - Example
+    ```go
+    resp, err := html.Get(url)
+    if err != nil {
+      return nil, err
+    }
+    // Alternatively, propogate a more specific error.
+    doc, err := html.Parse(resp.Body)
+    resp.Body.Close()
+    if err != nil {
+      return nil, fmt.Errorf("parsing %s as Html: %v", url, err)
+    }
+    ```
 
 2. Retry the failed operation, mainly for errors that represent trasient or unpredicatable problems. 
-  - Of course, set a time or attempt limit using this strategy.
-  - See [`waitforserver.go`](./waitforserver/waitforserver.go) for example.
+    - Of course, set a time or attempt limit using this strategy.
+    - See [`waitforserver.go`](./waitforserver/main.go) for example.
 
 3. Stop the program gracefully, if function is essential to program progress.
-  - Generally, should be reserved for the `main` package of a program.
-  - Go packages usually propogate errors, unless error is sign of internal inconsistency (aka a bug).
-  - Example:
-  ```go
-  if err := WaitForServer(url); err != nil {
-    fmt.FPrintf(os.Stderr, "Site is down: %v\n", err)
-    os.Exit(1)
-  }
-  // More conveniently, use log.Fatalf for same results
-  if err := WaitForServer(url); err != nil {
-    log.Fatalf("Site is down: %v\n", err)
-  }
-  // By default, Fatalf prints date and time (useful for long running)
-  // To surpress dait and time, we can use
-  log.Setprefix("wait: ") // Add package as prefix
-  log.SetFlags(0)         // Surpress date/time
-  ```
+    - Generally, should be reserved for the `main` package of a program.
+    - Go packages usually propogate errors, unless error is sign of internal inconsistency (aka a bug).
+    - Example:
+    ```go
+    if err := WaitForServer(url); err != nil {
+      fmt.FPrintf(os.Stderr, "Site is down: %v\n", err)
+      os.Exit(1)
+    }
+    // More conveniently, use log.Fatalf for same results
+    if err := WaitForServer(url); err != nil {
+      log.Fatalf("Site is down: %v\n", err)
+    }
+    // By default, Fatalf prints date and time (useful for long running)
+    // To surpress dait and time, we can use
+    log.Setprefix("wait: ") // Add package as prefix
+    log.SetFlags(0)         // Surpress date/time
+    ```
 
 4. Log the error and continue, if can continue with possible reduced functionality:
-  - Example:
-  ```go
-  if err := Ping(); err != nil {
-    log.Printf("ping failed: %v; networking disabled", err)
-    // Note log functions automatically append '\n' if not present. 
-  }
-  // Not using log and printing directly to error stream 
-  if err := Ping(); err != nil {
-    fmt.Fprintf(os.Stderr, "ping failed: %v; networking disabled\n", err)
-  }
-  ```
+    ```go
+    if err := Ping(); err != nil {
+      log.Printf("ping failed: %v; networking disabled", err)
+      // Note log functions automatically append '\n' if not present. 
+    }
+    // Not using log and printing directly to error stream 
+    if err := Ping(); err != nil {
+      fmt.Fprintf(os.Stderr, "ping failed: %v; networking disabled\n", err)
+    }
+    ```
 
-5. As a last option and least commonly, safely an ignore the entire error
-  - Example:
-  ```go
-  dir, err := ioutil.TempDir("", "scratch")
-  if err != nil {
-    return fmt.Errof("failed to create temp dir: %v", err)
-  }
-  // ...use temp dir..
-  os.RemoveAll(dir) // ignore errors; $TMPDIR is cleaned periodally
-  ```
-  - Best practice to always consider errors after function call.
-  - If using this method, best to document intention of ignoring clearly.
+5. Least commonly, safely an ignore the entire error
+    - Best practice to always consider errors after function call.
+    - If using this method, best to document intention of ignoring clearly.
+    - Example:
+      ```go
+      dir, err := ioutil.TempDir("", "scratch")
+      if err != nil {
+        return fmt.Errof("failed to create temp dir: %v", err)
+      }
+      // ...use temp dir..
+      os.RemoveAll(dir) // ignore errors; $TMPDIR is cleaned periodally
+      ```
 
-- Similar to node style, handle failures before success.
+**Note**: Similar to _nodejs_ style, handle failures before success.
 
 ### End of File (EOF)
 
@@ -143,7 +140,7 @@ for {
   if err != nil {
     return fmt.Errof("read failed: %v", err)
   }
-  // ...use r..
+  // ...use r...
 }
 ```
 
@@ -183,7 +180,7 @@ fmt.Printf("%%T\n", f) // "func(int) int"
   - Accordingly, variable lifetimes are not determined by its scope.
 - See [topological sort](./anon/toposort.go) for example.
 
-### Caveats: Capturing Iteration Variables
+### Gotchas: Capturing Iteration Variables
 
 - Sometimes Go's lexical scope rules can cause surprising results.
 - To capture an iteration variable, assign it to a different variable in the enclosing scope first:
@@ -191,7 +188,7 @@ fmt.Printf("%%T\n", f) // "func(int) int"
 var rmdirs []func()
 for _, d := range tempDirs() {
   dir := d // The necessary assignment 
-  os.MkdirAll(dir, 0755)
+  os.MkdirAll(dir, 0755) // umask 022
   rmdirs = append(rmdirs, func() {
     os.Removeall(dir)
   })
@@ -212,3 +209,83 @@ for _, d := range tempDirs() {
 - To accept any values at all for its final arguments, can use `(finalargs ...interface{})`
 
 ## Deferred Function Calls
+
+- Create a deferred function by prefixing function call with `defer`:
+  - `defer resp.Body.Close()`
+- Function and argument expressions evaluated when statement is executed, but actual call is _deferred_ until the function that contains the `defer` statement has finished, whatever branch it took.
+- Any number of calls may be deferred
+  - Note they are executed in the _reverse_ order in which they were deferred.
+- Often used with paired operations like open/close, disconnect/connect, lock/unlock, etc. to ensure resources are released in all cases, no matter how complex the control flow.
+- See example in [`defer/title`](./defer/title.go)
+  - First version requires a duplicate call to close connection in all paths.
+  - Second calls deferred close to execute it after everything else has finished.
+- Deferred functions have access to outer scope still.
+  - For functions with many return statements, a handy trick is to defer an anonymous defer statement within a function with a named result:
+  ```go
+  func double(x int) (result int) {
+    defer func() { fmt.Printf("double(%d) = %d\n", x, result) }()
+    return x + x
+  }
+  _ = double(4) // Stdout: "double(4) = 8"
+  // Note the result value is updated to x+x in return,
+  // then it is called with new result.
+  ```
+- Be careful when using `defer` in a loop, since it won't be executed until all values in the loop have completed.
+  - For example, if looping through files and deferring a close, could run out of file descriptors before others have closed.
+  - One possible solution to this is to move the inner loop logic into another function, and call that function within the loop. Then defer will be called after each iteration.
+
+## Panic
+
+- When mistakes are detected at runtime (such as out-of-bounds array access or nil pointer dereference), it _panics_.
+- Typical panic stops normal execution, _executes the deferred calls_, then crashes with log message which includes the _panic value_ and stack trace.
+- There is also a built-in `panic` function that can be called directly.
+  - This is most useful and best practice to use when an "impossible" situation happens and execution reaches a case that cannot logically happen:
+  ```go
+  switch s := suit(drawCard()); s {
+  case "Spades":   //...
+  case "Hearts":   //...
+  case "Diamonds": //...
+  case "Clubs":    //...
+  default:
+    panic(fmt.Sprintf("invalid suit %q", s)) // Joker?
+  }
+  ```
+- Unless providing a meaningful message for panic that runtime panic will catch anyway, best to just let runtime panic.
+- Panic is similar to an "exception", but since always causes a program crash, should only be used for grave errors. Otherwise use `error` values.
+  - There are cases when may need to separate panic errors from errors. For example, if regular expression receives input that can't be compiled, it panics, but for an incorrect pattern, it gives error value.
+- As a diagnostic tool, can defer a call to dump the stack ([`runtime pkg`](https://golang.org/pkg/runtime)) in main in order to dump the stack in case of a panic:
+```go
+func main() {
+  defer printStack() {
+      defer printStack()
+      f(3)
+  }
+  func printStack() {
+    var buf [4096]byte
+    n := runtime.Stack(buf[:], false) // Returns bytes written
+    os.Stdout.Write(buf[:n])
+  }
+```
+- Giving up in a panic is usually correct, but there are some cases when we can recover, or at least clean up.
+
+## Recover
+
+- Recovering from panic is most useful for cleaning up or getting some useful error messages rather than an immediate crash. Cleanup examples include closing a connection that wasn't deferred, etc.
+- Another example is if panic occurs in some odd corner case, we can convert panic into ordinary error value, print an extra message to alert, and continue:
+```go
+func Parse(input string) (s *Syntax, err error) {
+  defer func() {
+    if p := recover(); p != nil {
+      err = fmt.Errof("internal error: %v", p)
+    }
+  }()
+  // ...parser...
+}
+```
+- Be careful when converting panics (be sure to cause some kind of alert), as it might cause lurking bugs to go unnoticed.
+- Some best practices:
+  - Don't try to recover from another package's panics (public APIs should report failures as `errors`)
+  - Don't recover from a apanic that may pass through a function you don't maintain since you cannot reason about its safety.
+  - Overall, `recover` _very_ selectively, if at all.
+- See [recover example](./recover/soletitle.go) for how you might check a panic value and use recover, although this example isn't a best practice.
+- There are some panics that cannot be recovered from, fatal errors, such as running out of memory.

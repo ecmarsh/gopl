@@ -97,6 +97,81 @@ func (list *IntList) Sum() int {
 
 ## Composing Types by Struct Embedding
 
+- As we can refer indirectly to [embedded structs](../4_composites/readme.md#Struct_Embedding_and_Anonymous_Fields), we can call methods in the same way.
+- When a method is called indirectly, the method has been _promoted_ to type we're calling it on.
+- This is the mechanism that allows many methods to be built up by composition of several fields.
+- An important note is that the containing struct with embedded struct is _not_ similar to inheritance (where embedded would be base class and containing would be derived). It is a closer relationship to "has-a", so would be an "implements" relationship.
+  - As a takeaway, we cannot use containing structs in place of say a function that takes a type of the embedded struct. The embedded struct must be explicitly selected through the container.
+  - Example:
+  ```go
+  import "image/color"
+
+  type Point struct { X, Y float64 }
+  type ColoredPoint struct {
+    Point
+    Color color.RGBA
+  }
+  // When we promote a method, compiler implictly generates
+  // wrappers that would function similarly to this:
+  func (p ColoredPoint) Distance(q Point) float64 {
+    return p.Point.Distance(q) // Method is called explicitly on p.Point
+  }
+  func (p *ColoredPoint) ScaleBy(factor float64) {
+    p.Point.ScaleBy(factor) // Same, receiver value is p.Point, not *p
+  }
+  ```
+- We can reduce the explicit call by using a pointer as the anonymous field, so fields and methods are promoted indirectly from pointed-to object:
+  ```go
+  type ColoredPoint struct {
+    *Point
+    Color color.RGBA
+  }
+  p := ColoredPoint{&Point{1, 1}, red}
+  q := ColoredPoint&Point{{5, 4}, blue}
+  fmt.Println(p.Distance((*q.Point)) // "5"
+  q.Point = p.Point                  // p and q now share same point
+  p.ScaleBy(2)                       // ScaleBy is promoted indirectly
+  fmt.Println(*p.Point, *q,Point)    // "{2 2} {2 2}"
+  ```
+- A struct type may have more than one anonymous field (we could have defined `Color` as just `color.RGBA` above).
+  - Then `ColoredPoint` would _have_ (not inherit, but be able to use) any of the additional methods of `Point` and `RGBA`, plus any other methods declared by `ColoredPoint`.
+  - When a method is called in containing struct, compiler resolves by looking first for directly declared method, then for methods promoted once from embedded fields, then methods promoted twice, etc. If call is ambiguous (eg two methods with same name promoted from same rank), the compiler reports an error.
+- It can sometimes be useful for _unnamed struct types_ to have methods too by allowing for more expressive names and self-explanatory syntax:
+  ```go
+  // Shows part of a simple cache implemented with two pkg-level vars
+  var (
+    mu sync.Mutex // guards mapping
+    mapping = make(map[string]string)
+  )
+  func Lookup(key string) string {
+    mu.Lock()
+    v := mapping[key]
+    mu.Unlock()
+    return v
+  }
+  // Below is equivalent to above but groups together related
+  // variables by defining methods on unnamed struct types
+  var cache = struct {
+    sync.Mutex
+    mapping map[string]string {
+      mapping: make(map[string]string)
+    }
+  }
+  // Lookup becomes self-explanatory now
+  func Lookup(key string) string {
+    cache.Lock()
+    v := cache.mapping[key]
+    cache.Unlock()
+    return v
+  }
+  ```
+
+## Method Values and Expressions
+
+
+
+
+
 
 
 

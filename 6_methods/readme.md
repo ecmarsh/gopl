@@ -168,12 +168,41 @@ func (list *IntList) Sum() int {
 
 ## Method Values and Expressions
 
+- A __method value__ is a function that binds a method to a specific receiver value. The function can then be invoked without a receiver value; it needs only the non-receiver arguments.
+```go
+p := Point{1, 2}
+q := Point{4, 6}
+distanceFromP := p.Distance        // method value
+fmt.Println(distanceFromP(q))      // "5"
+var origin Point                   // {0, 0}
+fmt.Println(distanceFromP(origin)) // "2.236..." √5"
 
+scaleP := p.ScaleBy // method value
+scaleP(2)           // p becomes (2, 4)
+scaleP(3)           // then (6, 12)
+scaleP(10)          // (60, 120)
+```
+- Method values are useful for shorter syntax, especially for "callbacks". For example:
+```go
+type Rocket struct { ... }
+func (r *Rocket) Launch() { ... }
+r := new(Rocket)
+// Instead of
+time.AfterFunc(10 * time.Second, func() { r.Launch() })
+// Just do
+time.AfterFunc(10 * time.Second, r.Launch)
+```
+- A __method expression__ is written on the named type instead of the instance/object as in the method value: `scale := (*Point).ScaleBy`, or the struct value equivalent.
+- Then when calling `scale`, the receiver needs to be passed as the first argument for the method to be called on: `scale(&p, 2)`.
+- Method expresions can be useful when need a value to represent a choice among several methods belonging to same choice so you can call chosen method with many different receivers. 
 
+## Encapsulation
 
-
-
-
-
-
-
+- Variable of an object is _encapsulated_ if it is inaccessible to clients of the object; also refered to as information-hiding.
+- Since Go's only mechanism of controlling visibility of names is through capitalization, to encapsulate an object, you must use a struct; lowercase field names are "private".
+- Even for one field, we encapsulate so that clients only access the object through the API we specify.
+- Fields of a struct type are, even lowercase, are visible to all code within the same package.
+- Often used for abstraction, to hide the implementation details and preventing from depending on things that might change, giving us greater freedom to evolve implementations without breaking API compatibility.
+- Encapsulation also disallows client's from setting an object's values arbitrarily and allows authors of a package to ensure that all functions maintain the object's internal invariants.
+- Functions that merely access or modify internal values of a type are called getters and setters.
+- As best practice, when naming a getter method, usually omit the `Get` prefix. Preference for brevity extends to other redundant prefixes as well such as `Fetch`, `Find`, `Lookup`, etc.

@@ -250,4 +250,25 @@ type errorString struct { text string }
 
 func (e *errorString) Error() string { return e.text }
 ```
-- More notes here
+- It's underlying type is a struct as opposed to string to protect its representation from inadvertent (or premeditated) updates.
+- The reason that pointer type `*errorString`, not `errorString` alone, satisfies the error interface is so that every call to `New` allocates a distinct error instance that is equal to no other.
+- Note that calls to `errors.New` are relatively infrequent because we use `Errorf` as a wrapper function:
+```go
+package fmt
+
+import "errors"
+
+func errorF(format string, args ...interface{}) error {
+  return errors.New(Sprintf(format, args...))
+}
+```
+- The [syscall package](https://golang.org/pkg/syscall/) provides many different types of errors, including `Errno` for defining errors numerically as lookup keys; these map to POSIX errors.
+- We can discriminate errors using type assertions.
+
+## Type Assertions
+
+- A type assertion is an operation applied to an interface value.
+
+### Discriminating Errors with Type Assertions
+
+- The [`os` package](https://golang.org/pkg/os/) provides helper functions to classify the failure indicated by a given error value.

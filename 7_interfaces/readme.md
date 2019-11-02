@@ -267,8 +267,135 @@ func errorF(format string, args ...interface{}) error {
 
 ## Type Assertions
 
-- A type assertion is an operation applied to an interface value.
+Type assertions check that the dynamic type of its operand matches the asserted type.
+
+```go
+x.(T)
+// x is expression of interface type
+// t is a type, called the asserted type
+```
+
+- If T is concrete, then checks whether x's dynamic type is identical to T.
+  - If the check fails, type assertion causes a panic.
+- If T is an interface type, type assertion checks whether x's dyanmic type satisfies T.
+  - A type assertion to an interface type changes the type of the expression, making a different (and usually larger) set of methods accessible, while preserving the dynamic type and value components inside the interface value.
+- Example:
+```go
+var w io.Writer
+w = os.Stdout
+rw := w.(io.ReadWriter) // success: *os.File has both Read and Write
+
+w = new(ByteCounter)
+rw = w.(io.ReadWriter) // panic: *ByteCounter has no Read method
+```
+- Type assertion always fail if operand is a nil interface value.
+- In order to not cause a panic, use in an assignment to handle:
+```go
+var w io.Writer = os.Stdout
+f, ok := w.(*os.File)      // success:  ok, b == os.Stdout
+b, ok := w.(*bytes.Buffer) // failure: !ok, b == nil
+// Often it is used to decide next steps...
+// Note it is common to use the original variable name rather than a new name
+if w, ok := w.(*os.File); ok {
+  // ...use w as *os.File...
+}
+```
 
 ### Discriminating Errors with Type Assertions
 
+- Discriminating error types allows us to provide robust error messages across different systems.
 - The [`os` package](https://golang.org/pkg/os/) provides helper functions to classify the failure indicated by a given error value.
+- There are 3 common types of errors where helper functions are provided accordingly:
+```go
+package os
+
+func IsExist(err error) bool      // file already exists (create operations)
+func IsNotExist(err error) bool   // file not found (read operations)
+func IsPermission(err error) bool // permission denied
+```
+- To handle errors most reliably, represent structured error values using a dedicated type.
+  - For example, `os.PathError` can be used to describe failures in an operation on a file path (like Open or Delete).
+  - Another variant is `os.LinkError` which can be used to describe failures involving two file paths, like `Symlink` and `Rename`.
+- Example usage to distinguish error type and display appropriate error message:
+```go
+import (
+  "errors"
+  "syscall"
+)
+
+var ErrNotExist = errors.New("file does not exist")
+// IsNotExist returns a boolean indicating whether the error is known to
+// report that a file or directory does not exist. It is satisfied by
+// ErrNotExist as well as some syscall errors.
+func IsNotExist(err error) bool {
+  if pe, ok := err.(*PathError); ok {
+    err = pe.Err
+  }
+  return err == syscall.ENOENT || err == ErrNotExist
+}
+```
+- Remember to do error discrimination immediately after the failig operation, before an error is propogated to the caller so the built error is not lost.
+
+### Querying Behaviors with Interface Type Assertions
+
+- We can use interface type assertions to only add additional methods (which often require a copy) when necessary. Instead of allocating a copy of every time, we can use the already satisfied interface:
+
+```go
+// WriteString writes s to w.
+// If w has a WriteString method, it is invoked instead of w.Write.
+func writeString(w io.Writer, s string) (n int, err error) {
+  type stringWriter interface {
+    WriteString(string) (n int, err error)
+  }
+  if sw, ok := w.(stringWriter); ok {
+    return sw.WriteString(s) // avoid allocating memory for a copy
+  }
+  return w.Write([]byte(s)) // allocate the temporary copy
+}
+
+func writeHeader(w io.Writer, contentType string) error {
+  if _, err := writeString(w, "Content-Type: "); err != nil {
+    return err
+  }
+  if _, err := writeString(w, contentType); err != nil {
+    return err
+  }
+  // ...
+}
+```
+
+## Type Switches
+
+- Interfaces are used in two distinct styles:
+  - 1. An interface's methods express the similarities of concrete types that satisfy the interface but hide the representation details and intrinsic operations of those concrete types; emphasis on the methods, not on the concrete types. This style is exmplified in `io.Reader/Writer`, `fmt.Stringer`, `sort.Interface`, `http.Handler`, and `error`.
+  - 2. Discriminated unions: explotation of ability of interface value to hold values of a variety of concrete types by considering interface to be the _union_ of those types; emphasis on concrete types that satisfy the interface, not on the interface's methods (if it has any). ie. there is no hiding of information.
+- Type switches focused mainly on the second style.
+
+```go
+// Type switch
+// Case order is significant as possibility of two cases matching.
+// NOTE: no fallthrough is allowed
+switch x.(type) {
+case nil:       //...
+case int, uint: //...
+case bool:      //...
+case string:    //...
+default:        //... (Typically a panic is used here)
+}
+// Extended type switch form that binds extracted variable to new variable
+switch x := x.(type) { /* ... */ }
+```
+
+- As with ordinary switches, typeswitches create a new lexical scope. Each case also creates its own lexical scope.
+- Typical panic format for default case looks like `panic(fmt.Sprintf("unexpected type %T: %v", x, x))`
+- Best uses for cases where a function might except an "any" empty interface type (`interface{}`), but it actually must be one of many types, called a _discriminated union_; in the example above, it's a discriminated union of int, uint, bool, string, and nil.
+
+See [token-based XML decoding example](./xmlselect) for using typeswitches in practice.
+
+## Interface Design Tips
+
+- Remember interfaces are only needed when there are two or more concrete types that must be dealt with in a uniform way.
+  - Take advantage of controlling what is/isn't exported.
+  - Avoid creating a set of interfaces at the beginning of creating a new package and then only later defining the concrete types that satisfy them as this results in many unnessary abstractions with only a single implementation.
+  - The exception to this rule is when an interface is satisfied by a single concrete type but that type cannot live in the same package as the interface because of its dependencies; in that case it's a good way to decouple two packages.
+- Good rule of thumb for interface design is only ask for what you need; smaller interfaces are easier to satisfy.

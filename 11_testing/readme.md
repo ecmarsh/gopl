@@ -75,6 +75,7 @@ func TestRandomPalindromes(t *testing.T) {
 - To test a command, it is helpful to break out the essential part of the function, and use main as a driver.
   - During testing the main function is ignored.
   - A good strategy is organizing test cases a table to test different types of input.
+  - Then we "fake" implementation by replacing other parts of the production and reading output; faking implementations makes configuration simpler, more reliable and easier to observe as well as avoid undesirable side effects. 
 - Note that the `*_test.go` package for an executable, can also be named package `main`.
 - If panics occur during tests, the test driver recovers, but the test is considered a failure.
 - Expected errors occuring from bad user input, missing files, or imporper configuration should be reported by returning a non-nil error value.
@@ -82,4 +83,14 @@ func TestRandomPalindromes(t *testing.T) {
 
 ## White Box Testing
 
+- White vs black box testing is categorized by level of knowledge they require of the internal workings of the tested package.
+- Black box tests assumes nothing about the package other than what is exposed by its API and the documentation.
 - A _white-box_ test has privelaged access to internal functions and data structures of a package so it can make observes and changes that an ordinary client cannot.
+- An example of white-box is checking that data types are maintained after every operation.
+- Black box updates are typically more robust and require fewer updates.
+- White box helps to provide detailed coverage of the trickier parts of the implementation.
+- In previous examples, the test for `IsPalindrome` is a black box test, simply calling the exported function, while the `EchoArgs` test uses a global variable of the package, making it a white-box test.
+- Typically with white-box testing we fake an implementation for simpler configuration and better reliability. This is why its important to move the alogrithmic part of the function and the driver to separate functions for testing.
+- Typically we add a private package-level variable to use for output depending on testing or production environment.
+  - Remember to restore the original global variable if overriding by keeping a reference, then deferring a rest to the original function/package global.
+  - Using global variables in this way is safe because `go test` does not normally run multiple tests concurrently.

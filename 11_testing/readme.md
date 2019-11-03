@@ -72,3 +72,14 @@ func TestRandomPalindromes(t *testing.T) {
 
 ## Testing a Command
 
+- To test a command, it is helpful to break out the essential part of the function, and use main as a driver.
+  - During testing the main function is ignored.
+  - A good strategy is organizing test cases a table to test different types of input.
+- Note that the `*_test.go` package for an executable, can also be named package `main`.
+- If panics occur during tests, the test driver recovers, but the test is considered a failure.
+- Expected errors occuring from bad user input, missing files, or imporper configuration should be reported by returning a non-nil error value.
+- See [echoargs](../1_intro/echoargs/) for example of testing a command with table test-cases.
+
+## White Box Testing
+
+- A _white-box_ test has privelaged access to internal functions and data structures of a package so it can make observes and changes that an ordinary client cannot.

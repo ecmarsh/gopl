@@ -28,8 +28,10 @@ func (s *IntSet) Len() int {
 
 // Remove removes x from the set.
 func (s *IntSet) Remove(x int) {
-	word, bit := x/w, uint(x%w)
-	s.words[word] &^= 1 << bit
+  if s.Has(x) {
+    word, bit := x/w, uint(x%w)
+    s.words[word] &^= 1 << bit
+  }
 }
 
 // Clear removes all elements from the set.

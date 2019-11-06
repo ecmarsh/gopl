@@ -94,3 +94,5 @@ func TestRandomPalindromes(t *testing.T) {
 - Typically we add a private package-level variable to use for output depending on testing or production environment.
   - Remember to restore the original global variable if overriding by keeping a reference, then deferring a rest to the original function/package global.
   - Using global variables in this way is safe because `go test` does not normally run multiple tests concurrently.
+
+## External Test Packages

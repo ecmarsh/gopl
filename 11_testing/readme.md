@@ -173,4 +173,29 @@ func TestSplit(t *testing.T) {
   - Test program's simpler and more stable interfaces in preference to its internal functions.
   Don't check for exact string matches, for example, but look for relevant substrings that will remain unchanged as the program evolves.
   - Note it is often worth writing a function that will distill complex output down to its essense so that assertions are reliable.
-  
+
+## Coverage
+
+- "Testing shows the presence, not the absence of bugs."
+- The degree to which a suite exercises the package under test is called a test's _coverage_.
+- _Statement coverage_ is the simplest and most commonly used which is the fraction of source statements that are executed at least once during the test.
+- To see coverage, go has a tool `go coverage` which is integrated into the `go test` tool.
+- See [eval_test.go(TestCoverage)](../7_interfaces/eval/eval_test.go) for example of coverage test.
+- To run the coverage, use the `-coverProfile` flag with go test:
+```sh
+# prints the summary of function statements covered to c.out
+$ go test -run=Coverage -coverprofile=c.out $GOPATH/path/pkg
+ok      $GOPATH/path/pkg     .0032s    coverage: 68.5% of statements
+# to see a count of times ran use -cover-mode=count
+# if you just need summary use
+$ go test -cover
+# in order to view output of c.out as html file:
+$ go tool cover-html=c.out
+```
+- Note that some statements should always be red (e.g panics as default switch statements in testing); achieving 100% coverage usually isn't feasable.
+- Other cases that make it unfeasable is handling esoteric errors, but always need to decide on tradeoff of cost of failures and cost of writing those tests.
+- Coverage tools help identify the weakest spots, but need to use same good programming sense when writing programming tests.
+
+## Benchmark Functions
+
+- 

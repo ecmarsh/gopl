@@ -198,4 +198,50 @@ $ go tool cover-html=c.out
 
 ## Benchmark Functions
 
-- 
+- Uses `*testing.B` which is similar to `*testing.T` but includes extra features related to performance measurement and exposes an integer field N which specifies number of times to perform the operation being measurement.
+- Simple benchmark test:
+
+```go
+import "testing"
+
+func BenchmarkIsPalindrome(b *testing.B) {
+  for i := 0; i < b.N; i++ {
+    IsPalindrome("A man, a plan, a canal: Panama")
+  }
+}
+```
+
+- To run above:
+
+```sh
+$ cd $GOPATH/path/to/paldindrome
+$ go test -bench=.
+# tells us IsPalindrome took about 1.035 microseconds averaged over 1m runs
+PASS BenchmarkIsPalindrome-8 1000000  1035 ns/op
+ok    $GOPATH/path/to/paldindrome   2.179s
+# note the suffix ...-8 is the value of GOMAXPROCS,
+# important for concurrent benchmarks
+```
+
+- To see memory allocation statistics in report, use the `-benchmem` command-line flag.
+```sh
+$ go test -bench=. -benchmem
+PASS
+BenchmarkIsPalindrome 1000000 1026 ns/op 304 B/op  4 allocs/op
+```
+
+- As a side note, the quickest program for IsPalindrome will be the one that makes the fewest number of memory allocations.
+- For benchmarking, the important measurements are the __relative__ timings of two different operations.
+- For comparative benchmarks, typically just different functions with different parameters:
+```go
+func benchmark(b *testing.B, size int) { /* ... */ }
+func benchmark10(b *testing.B, size int) { benchmark(b, 10) }
+func benchmark100(b *testing.B, size int) { benchmark(b, 100) }
+func benchmark1000(b *testing.B, size int) { benchmark(b, 1000) }
+```
+- Parameter size specifies size of input varies across benchmarks but is constant within each benhmark.
+- Don't use the parameter `b.N` as the input size since unless you interpret it as an interation count for a fixed input, results will be meaninless.
+- Benchmarks are important to keep around as program evolves or input grows, new operarating systems, etc.
+
+## Profiling
+

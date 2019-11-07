@@ -124,4 +124,53 @@ $ go list -f={{.XTestGoFiles}} fmt
 
 ## Writing Effective Tests
 
-- 
+- Go requires the user to implement functions for most of the testing features, by design.
+- A good dtest doesn't explode on failure, but prints a clear and succint description of the symption of the problem and any other relevant facts regarding context.
+- Ideally, maintainers shouldn't need to read source code to decipher a test failure.
+- A good test shouldn't give up after one failure but try to report several errors in a single run since pattern of failures may be self revealing.
+- Example of _BAD_ test which provides almost useless information:
+```go
+import (
+  "fmt"
+  "strings"
+  "testing"
+)
+
+// A poor assertion function
+func assertEqual(x, y int) {
+  if x != y {
+    panic(fmt.Sprintf("%d is %d", x, y))
+  }
+}
+func TestSplit(t *testing.T) {
+  words := strings.Split("a:b:c", ":")
+  assertEqual(len(words), 3)
+  // ...
+}
+```
+- Assertion functions suffer from premature abstraction; by treating the failure of a particular tst as a mere difference, it forfeits the opportunity to provide meaningful contest.
+- Example of improved test report that shows function that was called, its input, and the significance of the result; it explicitly identifies the actual value and the expectation, then continues to execute even if the assertion failures:
+```go
+func TestSplit(t *testing.T) {
+  s, sep := "a:b:c", ":"
+  word := strings.Split(s, sep)
+  if got, want := len(words), 3; got != want {
+    t.Errorf("Split(%q, %q) returned %d words, want %d",
+      s, sep, got, want)
+  }
+}
+```
+- When needed, it is appropriate to use utility functions to make the testing simpler. (one example of a good utility function for this is `reflect.deepEqual`)
+- Key to good test is to start by implementing the concrete behavior you want and only then use functions to simplify the code and eliminate repitition.
+- Best results are rarely obtained by starting with a library of abstract, generic testing functions.
+
+## Avoiding Brittle Tests
+
+- An application that fails when it encounters new but valid inputs is called _buggy_.
+- A test that spuriously fails when a sound chnge was made to the program is called _britle_. Brittle tests can exasperate its maintainer.
+- Brittle tests fail for almost any change to the production code, good or bad and are sometimes called _change detector_ or _status quo_ tests. Time spent resolving these tests often depletes any benefit they may have once provided.
+- Following are some best practices for avoiding brittle tests:
+  - Test program's simpler and more stable interfaces in preference to its internal functions.
+  Don't check for exact string matches, for example, but look for relevant substrings that will remain unchanged as the program evolves.
+  - Note it is often worth writing a function that will distill complex output down to its essense so that assertions are reliable.
+  

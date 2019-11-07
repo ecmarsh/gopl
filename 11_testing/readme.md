@@ -96,3 +96,32 @@ func TestRandomPalindromes(t *testing.T) {
   - Using global variables in this way is safe because `go test` does not normally run multiple tests concurrently.
 
 ## External Test Packages
+
+- Since cyclic dependencies are forbidden in Go, resolve by declaring the package in test suffixed with `_test`.
+  - Note another package is created, but cannot be imported or used/imported by that name.
+- The external testing package is logically higher than the other packages.
+- External test packages are especially useful for integration tests of several components since we can import packages freely exactly as an application would.
+- To see which packages are included in production code (ie packages that go build will use):
+```sh
+# using fmt package as an example
+$ go list -f={{.GoFiles}} fmt
+[doc.go format.go print.go scan.go]
+# to see testing packages
+$ go list -f={{.TestGoFiles}} fmt
+[export_test.go] # note usually fmt does not have any
+# to see external testing packages included only for testing
+$ go list -f={{.XTestGoFiles}} fmt
+[fmt_test.go scan_test.go stringer_test.go]
+```
+- If external test packages need access to unexported items, create an in-package `_test.go` file and export the variables you need as a back door. Conventionally, this file is called `export_test.go`
+  - Example with fmt (note no tests, just redeclaration of needed variables):
+  ```go
+  package fmt
+
+  var IsSpace = isSpace
+  ```
+  - Now external tests can use `IsSpace` with techniques of white-box testing.
+
+## Writing Effective Tests
+
+- 

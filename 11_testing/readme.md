@@ -17,12 +17,15 @@ func TestName(t *testing.T) {
   // ...
 }
 ```
+
 - The `t` parameter provides methods for reporting test failures and logging.
 - See [./palin](./palin) for a simple example of testing if a word is a palindrome.
 - If tests are performing slow, use the -v flag to see the times of individual tests and then the `-run` flag to run only tests that match a pattern:
+
 ```sh
 go test -v -run="regex"
 ```
+
 - Example also includes a table-driven style. We could improve on table in [the example](./palin_test.go) by grouping the things we are testing into different tables and providing a more helpful error message for each case.
 - Note that one failure does not cause an entire stack print and following cases are still run (tests are independent of each other).
 - To stop a test case after a failure or if there's a cascade, use `t.Fatal` or `t.Fatalf`.
@@ -102,6 +105,7 @@ func TestRandomPalindromes(t *testing.T) {
 - The external testing package is logically higher than the other packages.
 - External test packages are especially useful for integration tests of several components since we can import packages freely exactly as an application would.
 - To see which packages are included in production code (ie packages that go build will use):
+
 ```sh
 # using fmt package as an example
 $ go list -f={{.GoFiles}} fmt
@@ -113,14 +117,16 @@ $ go list -f={{.TestGoFiles}} fmt
 $ go list -f={{.XTestGoFiles}} fmt
 [fmt_test.go scan_test.go stringer_test.go]
 ```
+
 - If external test packages need access to unexported items, create an in-package `_test.go` file and export the variables you need as a back door. Conventionally, this file is called `export_test.go`
   - Example with fmt (note no tests, just redeclaration of needed variables):
+
   ```go
   package fmt
 
   var IsSpace = isSpace
+  // now external tests can use `IsSpace` with techniques of white-box testing.
   ```
-  - Now external tests can use `IsSpace` with techniques of white-box testing.
 
 ## Writing Effective Tests
 
@@ -129,6 +135,7 @@ $ go list -f={{.XTestGoFiles}} fmt
 - Ideally, maintainers shouldn't need to read source code to decipher a test failure.
 - A good test shouldn't give up after one failure but try to report several errors in a single run since pattern of failures may be self revealing.
 - Example of _BAD_ test which provides almost useless information:
+
 ```go
 import (
   "fmt"
@@ -148,6 +155,7 @@ func TestSplit(t *testing.T) {
   // ...
 }
 ```
+
 - Assertion functions suffer from premature abstraction; by treating the failure of a particular tst as a mere difference, it forfeits the opportunity to provide meaningful contest.
 - Example of improved test report that shows function that was called, its input, and the significance of the result; it explicitly identifies the actual value and the expectation, then continues to execute even if the assertion failures:
 ```go
@@ -160,6 +168,7 @@ func TestSplit(t *testing.T) {
   }
 }
 ```
+
 - When needed, it is appropriate to use utility functions to make the testing simpler. (one example of a good utility function for this is `reflect.deepEqual`)
 - Key to good test is to start by implementing the concrete behavior you want and only then use functions to simplify the code and eliminate repitition.
 - Best results are rarely obtained by starting with a library of abstract, generic testing functions.
@@ -224,6 +233,7 @@ ok    $GOPATH/path/to/paldindrome   2.179s
 ```
 
 - To see memory allocation statistics in report, use the `-benchmem` command-line flag.
+
 ```sh
 $ go test -bench=. -benchmem
 PASS
@@ -284,3 +294,22 @@ Showing top 10 nodes out of 166 (cum >= 60ms)
 
 - Text may be enough to find cause of some issues, but for subtler issues, it's easier to use one of `pprof's` graphical displays which require GraphViz, download available [here](www.graphviz.org).
 - For more on Go's profiling tools, read the Go blog's ["Profiling Go Programs"](https://blog.golang.org/profiling-go-programs).
+
+## Example Functions
+
+- An example function is the third type of special `go test` function, which is indicated by a function name `Example*`:
+
+```go
+func ExampleIsPalindrome() {
+  fmt.Println(IsPalindrome("A man, a plan, a canal: Panama"))
+  fmt.Println(IsPalindrome("palindrome"))
+  // Output:
+  // true
+  // false
+}
+```
+
+- Example functions can be used for supplementing documentation, a simple test alternative, and hands-on experimentation.
+- Examples included with documentation can provide a quick reference or reminder or demonstrate the interaction between serveral types and functions belonging to one API.
+- Example functions are real go code, subject to compile-time checking, so they don't become stale as the code evolves. They are executable tests run by `go test`. If the lines contain `// Output:` as in the above example, Go prints the results of running the functions and checks that they match.
+- Since examples are executable and shown in docs, the godoc server will create a playground with golang.

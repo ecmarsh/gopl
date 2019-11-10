@@ -16,7 +16,9 @@ func main() {
 		log.Fatal(err)
 	}
 	defer conn.Close()
-	mustCopy(os.Stdout, conn)
+	// send input to server while also copying server response to output
+	go mustCopy(os.Stdout, conn)
+	mustCopy(conn, os.Stdin)
 }
 
 // mustCopy is a utility used in many examples to handle error writing.

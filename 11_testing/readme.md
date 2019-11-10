@@ -233,15 +233,54 @@ BenchmarkIsPalindrome 1000000 1026 ns/op 304 B/op  4 allocs/op
 - As a side note, the quickest program for IsPalindrome will be the one that makes the fewest number of memory allocations.
 - For benchmarking, the important measurements are the __relative__ timings of two different operations.
 - For comparative benchmarks, typically just different functions with different parameters:
+
 ```go
 func benchmark(b *testing.B, size int) { /* ... */ }
 func benchmark10(b *testing.B, size int) { benchmark(b, 10) }
 func benchmark100(b *testing.B, size int) { benchmark(b, 100) }
 func benchmark1000(b *testing.B, size int) { benchmark(b, 1000) }
 ```
+
 - Parameter size specifies size of input varies across benchmarks but is constant within each benhmark.
 - Don't use the parameter `b.N` as the input size since unless you interpret it as an interation count for a fixed input, results will be meaninless.
 - Benchmarks are important to keep around as program evolves or input grows, new operarating systems, etc.
 
 ## Profiling
 
+- Profiling is an automated approach to performance measurement based on sampling a number of profile events during execution, then extrapolating from them during a post-processing step.
+- The go tool supports different types of profiling:
+
+Type | Desc | Command
+--- | --- | ---
+CPU Profile | identifies functions whose execution requires most CPU time. | `go test -cpuprofile=cpu.out` 
+Heap Profile | identifies statements responsible for allocating the most memory. | `go test -memprofile=mem.out` 
+Block Profiling | identifies operations responsible for blocking goroutines the longest such as sys calls, channels sends and receives, and acquisitions of locks. | `go test -blockprofile=block.out`
+
+- Profiling becomes especially useful for long-running applications, so Go runtime's profiling features can be enabled under programmer control using the [runtime API](https://golang.org/pkg/runtime/).
+- After gathering a profile, analyze it using the _pprof_ tool. Not an every day tool and basic use requires only two arguments: the executable that produced the profile and the profile log.
+
+Example shell session to gather and display a simple CPU profile:
+
+```bash
+$ go test -run=NONE -bench=ClientServerParallelTLS64\
+[PS2] -cpuprofile=cpu.log net/http
+PASS
+BenchmarkClientServerParallelTLS64-8 1000
+  3141325 ns/op 143010 B/op 1747 allocs/op
+ok   net/http   3.395s
+
+# -text specifies output format (in this case a table with 10 hottest functions)
+$ go tool pprof -text -nodecount=10 .http.test cpu.log
+2570ms of 3590ms total (71.59%)
+Dropped 129 nodes (cum <= 17.95ms)
+Showing top 10 nodes out of 166 (cum >= 60ms)
+  flat    flat%  sum %     cum    cum%
+  1730ms 48.19% 48.19%  1750ms  48.75%  crypto/elliptic.p256ReduceDegree
+   230ms  6.41% 54.60%   250ms   6.96%  crypto/elliptic.p256Diff
+   ......
+   ......
+
+```
+
+- Text may be enough to find cause of some issues, but for subtler issues, it's easier to use one of `pprof's` graphical displays which require GraphViz, download available [here](www.graphviz.org).
+- For more on Go's profiling tools, read the Go blog's ["Profiling Go Programs"](https://blog.golang.org/profiling-go-programs).

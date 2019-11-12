@@ -245,4 +245,71 @@ func request(hostname string) (response string) { /* ... */ }
 
 ## Looping in Parallel
 
-- TODO
+- Problems where order does not matter, consisting entirely of subproblems that are completely independent of each other are called _embarassingly parallel_.
+- Embarassingly parallel problems are easiest kind to implement concurrently and enjoy performance that scales linearly with amount of parallelism.
+- At its simplest, remember if using variables, to give the goroutine its own block scope:
+
+```go
+// example that looks to create thumbnails from filenames in parallel
+for _, f := range filenames {
+    go func() {
+        thumbnail.ImageFile(f) // Note: We need to handle errors
+    }()
+}
+```
+
+- In order to know the error, we need to return values of each goroutine to the main one.
+- To prevent blocking, we can use a buffered channel to return names of generated image files
+ along with any errors. However, this makes it difficult to predict number of loop iterations.
+- The solution below uses `sync.WaitGroup` which allows us to know when the last goroutine has
+ finished (which may not be the last one to start) acting as a special counter that increments
+  before each goroutine starts and decrements it as it finishes. This structure is common
+   idiomatic pattern for looping in parallel when we don't know the number of iterations:
+
+```go
+// makeThumbnails makes thumbnails for each file received from the channel.
+// It returns the number of bytes occupied by the files it creates.
+func makeThumbnails(filenames <-chan string) int64 {
+    sizes := make(chan int64)
+    var wg sync.WaitGroup // number of working goroutines
+    for f := range filenames {
+        wg.Add(1) // increment count of active goroutines
+        // worker
+        go func(f string) {
+            defer wg.Done() // decrement counter when goroutine finished
+            thumb, err := thumbnail.ImageFile(f)
+            if err != nil {
+                log.Println(err)
+                return
+            }
+            info _ := os.Stat(thumb) // OK to ignore error
+            sizes <- info.Size() 
+        }(f)
+    }
+    // closer
+    go func() {
+        wg.Wait()
+        close(sizes) // close channel after all finished
+    }()
+    var total int64
+    for size := range sizes {
+        total += size
+    }
+    return total
+}
+```
+
+- Above, `Add` (wait group incrementer) must be called before goroutine starts.
+- We defer `Done` to ensure counter is decremented even in the error case.
+- The sizes channel carries each file size back to main goutine to compute the sum of bytes.
+- Notice that the closer gourtine waits for the workers to finish _before_ closing the `sizes
+` channel; wait and close must be concurrent with the loop over `sizes`.
+    - If wait operation were placed in main goroutine before the loop, it would never end; if
+     placed after, it would be unreachable since loop would never terminate since nothing closing
+      the channel.
+- See [concurrent web crawler](./crawl/), a common concurrency pattern (often asked in
+ interviews) for more on looping in parallel.
+ 
+ ## Multiplexing with `select`
+ 
+ - 

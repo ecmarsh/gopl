@@ -309,7 +309,39 @@ func makeThumbnails(filenames <-chan string) int64 {
       the channel.
 - See [concurrent web crawler](./crawl/), a common concurrency pattern (often asked in
  interviews) for more on looping in parallel.
+    - It covers avoiding deadlocking (stuck situation in which two goroutines attempt to send to
+     each other while neither is receiving) by creating a separate
+     goroutine.
+    - Also covers pitfalls of being _too_ parallel since unbounded parallelism is rarely a good
+     idea due to sys limits, server capacity, etc.
+    - One possible solution is to limit parallelism with a  _counting semaphore_, a buffered
+     channel of capacity `n` to model a concurrency primitive.
+        - Conceptually, each of the `n` vacant slots in the channel buffer represents a token
+         entitling the holder to proceed. Sending a value into the channel acquires a token and
+          receiving a value from the channel releases a token, creating a new vacant slot.
  
  ## Multiplexing with `select`
  
- - 
+ ```go
+select {
+case <-ch1:
+    // ...
+case x := <-ch2:
+    // ...use x...
+case ch3 <- y:
+    // ...
+default:
+    // ...
+}
+```
+
+ - `select` statements are similar to `switch` statements in that it has a number of cases and an
+  optional `default`.
+    - Each case specifies a _communication_ (send or receive operation on some channel), and an
+     associated block of statements.
+    - A receive expression may appear on its own, or within a short variable declaration.
+- `select` waits until a communication for some case is ready to proceed and then performs that
+ communication and executes the case's associated statements; the other commmunicaitons do not
+  happen.
+    - Note that a `select` with no cases (`select{}`) waits forever.
+- ...p245, |P3...

@@ -344,4 +344,79 @@ default:
  communication and executes the case's associated statements; the other commmunicaitons do not
   happen.
     - Note that a `select` with no cases (`select{}`) waits forever.
-- ...p245, |P3...
+- Examples:
+
+```go
+// select statement below waits until first of two events arrives,
+// either an abort event or event indicating 10 secons have elapsed.
+// If 10 seconds pass without an abort, the "rocket" launch proceeds.
+import "time"
+
+func main() {
+    // ...create abort channel...
+    
+    fmt.Println("Commencing countdown. Press return to abort.")
+    select {
+    // time.After immediately returns a new channel, and starts a new
+    // goroutine that sends a single value on that channel after specified time.
+    case <-time.After(10 * time.second):
+        // Do nothing.
+    case <-abort:
+        fmt.Println("Launch aborted!")
+        return
+    }
+    launch()
+}
+
+// More subtle example where channel, ch, has a buffer size 1, so
+// is alternately empty then full, meaning only one of cases can proceed:
+// either the send when `i` is even or the receive when odd.
+// It always prints `0 2 4 6 8`.
+ch := make(chan int, 1)
+for i := 0; i < 10; i++ {
+    select {
+    case x := <-ch:
+        fmt.Println(x) // "0" "2" "4" "6" "8"
+    case ch <- i:
+    }
+}
+```
+
+- If multiple cases ready, `select` picks one at random, which ensures every channel has an
+ adequate chance of selection.
+ - Increasing buffer size in the last example makes output nondeterministic (for cases when not
+  completely empty or full).
+ - Example "tick"/countdown pattern that doesn't need to be active for entire application lifetime:
+ 
+ ```go
+ticker := time.NewTicker(1 * time.second)
+<-ticker.C    // receive from the ticker's channel
+ticker.Stop() // cause ticker's goroutine to terminate
+```
+
+- A select statement can also do a _non-blocking_ communication, where we want to try to send or
+ receive on a channel, but avoid blocking if the channel is not ready. We use `default` which
+  specifies what to do when none of the other communcications can proceed immediately.
+- In below example, `select` statement receives value from abort channel if there is no one to
+ receive or does nothing which is a non-blocking receive operation. Doing it repeatedly is called
+  a _polling_ channel:
+ 
+```go
+select {
+    case <-abort:
+        fmt.Printf("Launch aborted!\n")
+        return
+    default:
+        // Do nothing.
+}
+```
+
+- Zero value for a channel is `nil`, which are sometimes useful; because send and receive
+ operations on a nil channel block forever, a case in a select statement whose channel is nil is
+  never selected which lets us use `nil` to enable or disable cases that correspond to features
+   like handling timeouts or cancellation, responding to other input events, or emitting output.
+- See [directory traversal](./du) for example of utilizing nil channels.
+
+## Cancellation
+
+- TODO

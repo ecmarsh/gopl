@@ -419,4 +419,82 @@ select {
 
 ## Cancellation
 
-- TODO
+- Goroutines can't terminate each other directly because that would leave its shared variables in undefined states.
+- Cancellation is difficult because we don't know how many goroutines are currently working, and because once a channel receives a variable, it consumes it.
+- For cancellation, we need a reliable mechanism to _broadcast_ an event over a channel so that many goroutines can see it as it occures and can later see when it has occurred.
+- We can exploit the fact that after a channel has been closed and drained of sent values, subsequent receive operations proceed immediately yielding zero values, to create a broadcast mechanism; don't send a value on the channel, close it.
+- Example (continued from [du example](./du)):
+
+```go
+// First create a cancellation channel on which no values are ever sent,
+// but whose closure indicates it is time for a program to stop what it is doing.
+var done = make(chan struct{})
+
+// cancelled checks, or polls, the cancellation state at the instant its called.
+func cancelled() bool {
+  select {
+    case <-done:
+      return true
+    default:
+      return false
+  }
+}
+
+// next, create a gourtine that reads from stdin and as soon as any input is read,
+// the goroutine broadcasts the cancellation by closing the done channel.
+go func() {
+  os.Stdin.Read(make([]byte, 1)) // read a single byte
+  close(done)
+}
+
+// now, make goroutines respond to cancellation by adding a third case to the
+// select statement that tries to receive from the done channel.
+// if this case is ever selected, before it returns, it drains the `fileSizes`
+// channel discarding all values until the channel is closed to ensure that any active
+// calls to `walkDir` can run to completion without getting stuck sending to `fileSizes`.
+for {
+  select {
+    case <-done:
+      // Drain fileSizes to allow existing goroutines to finish
+      for range fileSizes {
+        // Do nothing.
+      }
+      return
+    case size, ok := <-fileSizes:
+      // ...
+  }
+}
+
+// walkDir polls cancellatino status when it begins, and returns without doing
+// anything if the status is set which turns following goroutines to a no-op.
+func walkDir(dir string, n *sync.WaitGroup, fileSizes chan<- int64) {
+  defer n.Done()
+  if cancelled() {
+    return
+  }
+  for _, entry := range dirents(dir) {
+    // ...
+  }
+}
+
+// finally the select statement makes this operation cancellable and reduces
+// the typical cancellation latency of the program from hundreds of milliseconds to tens.
+func dirents(dir string) []os.fileInfo {
+  select {
+    case sema <- struct{}{}: // acquire token
+    case <-done:
+      return nil // cancelled
+    defer func() { <-sema }() // release token
+  }
+
+  // ... read directory ...
+}
+
+// when the cancellation occurs, all the background gourtines quickly stop and the main function returns,
+// which of course causes the program to exit, although sometimes it can be hard to tell main to clean up.
+```
+
+- Cancellation involves a trade-off; a quicker response often requires more intrusive changes to program logic.
+- You need to ensure no expensive operations ever occur after the cancellation event, but often most of the benefit can be obtained by checking for cancellation in a few important places.
+- For testing, there's a handy trick when main returns: if instead of returning from `main` in the event of cancellation, execute a call to `panic`, then the runtime will dump the stack of every gourtine in the program. If the main gourtine is the only one left, then it has cleaned up after itself. Bu if other gourtines remain, they may have not been properly cancelled (or maybe cancelled but cancellation takes time, and the stack dump can help investigate these cases).
+- See [chat server](./chat) for good example of how `select` is used to respond to different kind of messages. The program uses four types of gourtines: one instance apiece of the `main` and `broadcaster` gourtines, and for each client connection, one `handleConn` and one `clientWrite` routine.

@@ -101,4 +101,114 @@ func icer (iced chan<- *Cake, cooked <-chan *Cake) {
 
 ### Mutual Exclusion: `sync.Mutex`
 
-- TODO
+- A counting semaphore that counts only to one is called a _binary semaphore_. This shares the same idea except we limit the channel to capacity 1 to ensure that at most one goroutine accesses a shared variable at a time.
+
+```go
+var (
+  sema = make(chan struct{}, 1) // a binary sempahore guarding balance
+  balance int
+)
+
+func Deposit(amount int) {
+  sema <- struct{}{} // acquire token
+  balance = balance + amount
+  <- sema // release token
+}
+
+func Balance() int {
+  sema <- struct{}{} // acquire token
+  b := balance
+  <-sema // release token
+  return b
+}
+```
+
+- Pattern of _mutual exclusion_ is useful that it is supported directly by the `Mutex` type from the `sync` package. Its `Lock` method acquires the token (called a _lock_) and its `Unlock` method releases it:
+
+```go
+import "sync"
+
+var (
+  mu      sync.Mutex // guards balance
+  balance int
+)
+
+func Deposit(amount int) {
+  mu.Lock()
+  balance = balance + amount
+  mu.Unlock()
+}
+
+func Balance() int {
+  mu.Lock()
+  b := balance
+  mu.Unlock()
+  return b
+}
+```
+
+- In the above, the balance variable must call mutex's `Lock` in order to acquire an exclusive lock. If some other go routine acquired the lock, the operation will block until the other goroutine unlocks the variable again.
+  - By convention, variables guarded by a mutex are declared immediatedly after the declaration of the mutex itself. (as in the var statement above).
+- The region between lock and unlock (where the goroutine can freely read and modify the shared variables) is called a _critical section_.
+- This arrangement of functions, mutex lock, and variables ic alled a _monitor_, meaning a broker that ensures variables are accessed sequentially.
+- In more complex critical sections (especially ones in which errors must be dealt with by returning early), it can be hard to tell that calls to Lock and Unlock are strictly paired on all paths. In these scenarios, a deferred call to `Unlock` implicitly extends to the end of the current function so we don't remember to have to free the lock:
+  - Another benefit of using the deferred `Unlock`, is that it will run even if the critical section panics, which may be important in programs that make use of `recover`.
+  - Note that a defer call is marginally more expensive than just a call to `Unlock`, but arguably not enough to justify less clear code.
+
+```go
+func Balance() int {
+  mu.Lock()
+  defer mu.Unlock() // called after the return statement has read the value of balance
+  return balance // note we no longer need the variable b anymore
+}
+```
+
+- Note that mutex locks are not _re-entrant_: it's not possible to lock a mutex that's already locked as it leads to deadlock where nothing can proceed.
+- For instance, with a non-atomic function below, it is tempting to try and lock an entire sequence (because if an excessive withdrawl is attempted and the balance dips below zero, may cause a concurrent withdrawal for modest sum to be be rejected). The problem with the function is that there are three separate operations, each of which acquires and then releases the mutex lock.
+
+```go
+// NOTE: incorrect! causes deadlock
+func Withdraw(amount int) bool {
+  mu.Lock()
+  defer mu.Unlock()
+  // NOT atomic!
+  Deposit(-amount)
+  if Balance() < 0 {
+    Deposit(amount)
+    return false // insufficient funds
+  }
+  return true
+}
+```
+
+- A common solution is to divide a function such as `Deposit` into two; an unexported function `deposit`, that assumes the lock is already held and does the real work, and an exported function `Deposit` that acquires the lock before calling `deposit`:
+
+```go
+func Withdraw(amount int) bool {
+  mu.Lock()
+  defer mu.Unlock()
+  deposit(-amount)
+  if balance < 0 {
+    deposit(amount)
+    return false // insufficient funds
+  }
+  return true
+}
+
+func Deposit(amount int) {
+  mu.Lock()
+  defer mu.Unlock()
+  deposit(amount)
+}
+
+func Balance() int {
+  mu.Lock()
+  defer mu.Unlock()
+  return balance
+}
+
+// This function requires that the lock be held.
+func deposit(amount int) { balance += amount }
+```
+
+- When you use a mutex, make sure that both it and the variables it guards are not exported, whether they are package-level variables or the fields of a struct. Encapsulation helps us maintain concurrency invariants.

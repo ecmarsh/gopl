@@ -212,3 +212,23 @@ func deposit(amount int) { balance += amount }
 ```
 
 - When you use a mutex, make sure that both it and the variables it guards are not exported, whether they are package-level variables or the fields of a struct. Encapsulation helps us maintain concurrency invariants.
+
+### Read/Write Mutexes: `sync.RWMutex`
+
+- If a function only needs to read (e.g if multiple requests to read a balance are coming in), we can use a special kind of lock that allows read-only operations to proceed in parallel with each other, but write operations to have fully exclusive access. This lock is called _multiple readers, single writer_ lock and is provided by `sync.RWMutex`:
+
+```go
+var mu sync.RWMutex
+var balance int
+
+func Balance() int {
+  mu.RLock() // readers lock
+  defer mu.RUnlock()
+  return balance
+}
+```
+
+- The above differs from the normal lock/unlock methods to acquire and release a writer or _exclusive_ lock.
+- `RLock` can only be used if there are no writes to shared variables in the critical section.
+- Note that you must be positive that there is absolutely no way that you will cause some sort of update (e.g a method that appears to be a simple accessor might also increment an internal usage counter or update a cache to repeat so that calls are faster). When in doubt, use an exclusive lock.
+- It is only profitable to use an RWMutex when most of goroutines that acquire the lock are readers, and the lock is under _contention_, meaning goroutines have to wait to acquire it. The internal bookkeeping of an `RWMutex` makes it slower than a regular mutex for uncontended locks.

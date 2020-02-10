@@ -261,3 +261,63 @@ y:1 x:1
 - All of these concurrency problems can be avoided by consistent use of simple, established patterns.
   - Where possible, confine variables to a single gourtine.
   - For all other variables, use mutual exclusion.
+
+## Lazy Initialization: `sync.Once`
+
+- It is good practice to defer expensive initialization steps until it is needed, especially if there is a possibility that the initialized will not be needed.
+
+Example of lazy initialization from Icon example:
+
+```go
+var icons map[string]image.Image
+
+func loadIcons() {
+  icons = map[string]image.Image{
+    "spades.png": loadIcon("spades.png"),
+    "hearts.png": loadIcon("hearts.png"),
+    "diamonds.png": loadIcon("diamonds.png"),
+    "clubs.png": loadIcon("clubs.png"),
+  }
+}
+
+// NOTE: not concurrency safe!
+func Icon(name string) image.Image {
+  if icons == nil {
+    loadIcons() // one time initialization
+  }
+  return icons[name]
+}
+```
+
+- The above is not concurrently safe because if two routines try to get an icon, one routine may think the icons is not nill and try to access it before it had actually been assigned. The simplest way to ensure this does not happen is to synchronize them using a mutex:
+
+```go
+var mu sync.Mutex // guards icons
+var icons map[string]image.Image
+
+// Concurrency-safe
+func Icon(name string) image.Image {
+  mu.Lock()
+  defer mu.Unlock()
+  if icons == nil {
+    loadIcons()
+  }
+  return icons[name]
+}
+```
+
+- However, in the above, two goroutines cannot access the variable concurrently, even once the variable has been initialized and never modified again. We could use an `RWMutex`, but this adds complexity and is error-prone.
+- As an alternative, `sync` provides a specialized solution specifically for this problem called `sync.Once` which consists of a mutex and a boolean variable that records whether initialization has already taken place. It's sole method, `Do`, accepts the initialization function as its argument:
+
+```go
+var loadIconsOnce sync.Once
+var icons map[string]image.Image
+
+// Concurrency-safe
+func Icon(name string) image.Image {
+  loadIconsOnce.Do(loadIcons)
+  return icons[name]
+}
+```
+
+- In the above, each call to `Do(loadIcons)` locks the mutex and checks the boolean variable. The first call sets it to true so subsequent calls do nothing and it becomes visible to all goroutines.

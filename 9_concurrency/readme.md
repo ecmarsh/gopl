@@ -232,3 +232,32 @@ func Balance() int {
 - `RLock` can only be used if there are no writes to shared variables in the critical section.
 - Note that you must be positive that there is absolutely no way that you will cause some sort of update (e.g a method that appears to be a simple accessor might also increment an internal usage counter or update a cache to repeat so that calls are faster). When in doubt, use an exclusive lock.
 - It is only profitable to use an RWMutex when most of goroutines that acquire the lock are readers, and the lock is under _contention_, meaning goroutines have to wait to acquire it. The internal bookkeeping of an `RWMutex` makes it slower than a regular mutex for uncontended locks.
+
+## Memory Synchronization
+
+- Synchronization is not merely just the order of execution of multiple goroutines - it also affects memory.
+- With multi-processor computers that each have their own local cache of main memory, writes to memory may be buffered within each processor and flushed out to main memory only whe necessary - and this may be in a different order than originally written by the writing gourtine. Syncrhonization primitives like channels and mutex cause the processor to flush out and commit all of its accumulated writes to that the effects of gourtine execution up to that point are guaranteed to be visible to goroutines running on other processes.
+- Example showing the issue:
+
+```go
+var x, y int
+go func() {
+  x = 1                     // A1
+  fmt.Print("x:", x, " ") // A2
+}
+go func() {
+  y = 1                   // B1
+  fmt.Print("y:", y, " ") // B2
+}
+
+// Possible Output:
+y:0 x:1
+x:0 y:1
+x:1 y:1
+y:1 x:1
+```
+
+- The zeros may come as a surprise; although one goroutine must observe the write to its associated variable, it does not necessarily observe the write to the other gourtine, so it may print a stale value for the other variable (0).
+- All of these concurrency problems can be avoided by consistent use of simple, established patterns.
+  - Where possible, confine variables to a single gourtine.
+  - For all other variables, use mutual exclusion.

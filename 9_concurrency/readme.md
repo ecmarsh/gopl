@@ -321,3 +321,7 @@ func Icon(name string) image.Image {
 ```
 
 - In the above, each call to `Do(loadIcons)` locks the mutex and checks the boolean variable. The first call sets it to true so subsequent calls do nothing and it becomes visible to all goroutines.
+
+## The Race Detector
+
+- TODO

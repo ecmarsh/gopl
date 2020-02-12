@@ -324,4 +324,6 @@ func Icon(name string) image.Image {
 
 ## The Race Detector
 
-- TODO
+- Adding the `-race` flag to `go build, run, test` causes the compiler to build a modified verison of app or test that records all accesses to shared variables that occured during execution, along with the identify of the gourtine that read/wrote the variable. Syncrhonization events (go statements, channel ops, mutex locks/unlocks, waitgroups, etc) are also recorded.
+- The race detector only reports all data races that were executed, but it cannot prove that no races will ever occur. As a best practice, tests should exercise packages using concurrency. Concurrency programs require more overhead and time/memory to run, but overhead is tolerable and race detector can save hours or even days of debugging.
+- See [concurrent non-blocking cache example](./memo) that addresses the problem of _memoizing_ a function, or cahcing the result of a function so it only needs to be computed once.

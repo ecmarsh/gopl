@@ -327,3 +327,65 @@ func Icon(name string) image.Image {
 - Adding the `-race` flag to `go build, run, test` causes the compiler to build a modified verison of app or test that records all accesses to shared variables that occured during execution, along with the identify of the gourtine that read/wrote the variable. Syncrhonization events (go statements, channel ops, mutex locks/unlocks, waitgroups, etc) are also recorded.
 - The race detector only reports all data races that were executed, but it cannot prove that no races will ever occur. As a best practice, tests should exercise packages using concurrency. Concurrency programs require more overhead and time/memory to run, but overhead is tolerable and race detector can save hours or even days of debugging.
 - See [concurrent non-blocking cache example](./memo) that addresses the problem of _memoizing_ a function, or cahcing the result of a function so it only needs to be computed once.
+
+## Goroutines and Threads
+
+The differences between goroutines and os threads are essentially quantitative, but a big enough quantitative difference becomes a qualitative one, so some distinguishing must be done between the two.
+
+### Stacks
+
+#### OS Thread Fixed-Sized Stacks
+
+- Each fixed-size block of memory (often as large as 2MB) for its _stack_, the work area where it saves local variables of function calls that are in progress or temporarily suspended while another fn is called.
+- For goroutines, the fixed stacks can be simultaneously too much and too little memory; the 2MB stack would be a huge waste of memory for a little goroutine, but it's not uncommon for a large program with thousands of goroutines, possibly with recursion to overgrow the stack. Thus, the fixed stack does not work.
+
+#### Goroutine Flexible Stacks
+
+- Like the OS thread, it holds the local variables of active and suspended function calls.
+- The goroutine stack starts with a small stack (typically 2KB) and grows and shrinks as needed.
+- The size limit may be as high as 1GB, but few goroutines go anywhere near limits.
+
+### Scheduling
+
+#### OS Threads Scheduling
+
+- Scheduled by the OS kernel. Every few ms, a hardware timer interrupts the processor, causing a kernel function called the _scheduler_ to be invoked. The scheduler suspends the currently executing thread and saves its registers in memory, looks over the list of threads and decides which one should run next, restores that thread's registers from memory, then resumes the execution of that thread.
+- Since scheduling is done by the kernel, passing control from one thread to another requires a full _context switch_, or saving the state of of one user thread to memory, restoring the state of another, and updating the scheduler's data structures. This is a slow operation due to its poor locality and the number of memory accesses required; and, it's historically gotten worse as the number of CPU cycles required to access memory has increased.
+
+#### Goroutine Schedulers
+
+- The Go runtime has its own scheduler that uses a technique called _m:n scheduling_, because it multiplexes (or schedules) _m_ goroutines on _n_ OS threads. The job of the Go scheduler is analagous to the kernel scheduler, but only concerned with the goroutines of a single Go program.
+- In contrast to OS thread scheduler which is invoked by the hardware timer periodically, the Go scheduler is invoked implicitly by certain Go language constructs (e.g. when `time.Sleep` is called or blocks in a channel or mutex operation, the scheduler puts it to sleep and runs another goutine until its time to wake the first one up).
+  - This allows a cheaper operation than the kernel scheduler because it doesn't need a full context switch to reschedule a goroutine thread.
+
+##### `GOMAXPROCS`
+
+- The Go scheduler uses a parameter calleed GOMAXPROCS to determine how many OS threads may be actively executing GO code simultaneously.
+- GOMAXPROCS default value is # of CPUs on the machine, so on a machine with 8 CPUs, the scheduler will schedule go CODE ON UP TO 8 os THREADS AT ONCE. (GOMAXPROCS is the _n_ in the _m:n_ scheduling).
+- Goroutines that are sleeping or blocked do not need a thread at all.
+- Goroutines that are blocked in I/O or other system calls or are calling non-Go functions DO not need an OS thread, but GOMAXPROCS doesn't need to account for them.
+- You can explicitly control this parameter using the env var or the runtime.GOMAXPROCS function. Here's an example showing the effects of changing it on a little program which prints an endless stream of zeros and ones:
+
+  ```go
+  for {
+    go fmt.Print(0)
+    fmt.Print(1)
+  }
+  ```
+
+  ```sh
+  $ GOMAXPROCS=1 go run hacker-cliche.go
+  11111111111111110000000000000000111111....
+  $ GOMAXPROCS=2 go run hacker-cliche.go
+  010101010101010101010010101001010101010....
+  ```
+
+  - The first run at most executes one goroutine at a time (initially the main which prints ones, then after some time put main to sleep to wake up the second second which prints 0s).
+  - The second run has two OS threads available so both goroutines run simultaneously printing digits at about the same rate.
+  - Note that there are many factors affecting this, so running the same program may have slightly different results.
+
+### Goroutines Have No Identity
+
+- In most OS and programming languages that support multithreading, the current thread has a distinct identity that can be easily obtained as an ordinary value (typically integer or pointer), which amkes it easy to build an abstraction called _thread-local storage_, which is essentially a global map keyed by thread identity so that each thread can store and retrieve values idnependent of other threads.
+- By design, goroutines have no notion of identity that is accessible to programers since thread-local storage tends to be abused. For example, a web server implemented in a language with thread-local storage, it's common for many functions to find information about the HTTP request on whose behalf they are currently working by looking int hat storage. This can lead to an unhealthy "action at a distance" where the behavior of the function is not determined by its arguments alone, but by the identity of the thread in which it runs; that is, if the identity of the thread changes, some worker threads are enlised to help and the function "behaves mysteriously".
+- Go encourages simplicity in programming where parameters that affect the behavior of a function are explicit to make programs easier to read and freely assign subtasks of a given function to many different goroutines without worrying about their identity.

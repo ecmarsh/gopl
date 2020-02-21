@@ -97,3 +97,27 @@ fmt.Printf("%d\n", i) // "3"
 
 - The difference between `reflect.Value` and an `interface{}` is that an empty interface hides the representation and intrinsic operations of the value it holds and exposes none of its methods, so unless the dynamic type is known and we use a type assertion to peer inside (as above), there is little we can do to the value within. But with a `Value`, it has many methods for inspecting its contents, regardless of its type.
 - See [`format` example](./format) for a second attempt at a formatting function. Instead of a type switch, it uses `reflect.Value`'s `Kind` method to discriminate cases as their are only a finite number of _kinds_: the basic types `Bool`, `String`, and all the numbers; the aggretate types `Array` and `Struct`; the reference types `Chan`, `Func`, `Ptr`, `Slice`, and `Map`; `Interface` types; and finally `Invalid` meaning no value at all (the zero value kind of `reflect.Value` is reflect `Invalid`).
+
+## `Display` Example: a Recursive Value Printer
+
+- See [`display` example](./display) for example of improving the display of composite types.
+- Best practice is to avoid exposing reflection in the API of a package by wrapping it:
+
+```go
+func Display(name string, x interface {}) {
+  fmt.Printf("Display %s (%T):\n", name, x)
+  display(name, reflect.ValueOf(x))
+}
+```
+
+- Explanation of each case in examples:
+  - **Slices and arrays**: `display` recursively invokes itself on each element of the sequence, appending the subscript notation "[i]" to the path. Only a few of `reflect.Value`'s methods are safe to call on any given value, e.g., `Index()` is only safe to call on `Slice`, `Array`, or `String`.
+  - **Structs**: `Field(i)` returns the `i`-th field as a `reflect.Value` including fields promoted from anonymous fields. We use `reflect.Type` of the struct to append the field selector notation ".f" to the path and access the name of its `i`-th field.
+  - **Maps**: The subscript notation "[key]" is appended to path as a shortcut because the type of map key isn't restricted to the types of the `format` example. Extending cases to other composite types requires more effort since these can also be valid map keys.
+  - **Pointers**: The `reflect.Value` operation is safe even if the pointer value is nil (where more appropriate case is `Invalid`, but `isNil` is used to detect nil pointers explicitly. We prefix the path with an asterisk and parenthesize it to avoid ambiguity.
+  - **Interfaces**: Use `isNil` to determine if interface is nil and if not, retrieve the value using the `Elem()` method to simply print its type and value.
+
+- The example represents some cycles, and many Go programs contain at least some cyclic data. Additional bookkeeping is required to record the set of references that have been followed so far (this is also costly). The general solution requires using `unsafe` language features, exemplified in [low level programming notes](../13_lowlevel/readme.md).
+  - When `fmt.Sprint` encounters a pointer, it breaks the recursion by printing the pointer's numeric value. Occasionally it gets stuck trying to print a slice or map that contains itself as an element, but rare cases don't warrant the considerable extra trouble of handling cycles.
+
+- See [Encoding S-Expressions](./sexpr) example for another way of handling additional constructs such as `integer`, string with Go style quotations, symbols with unquoted names, and a list (zero or more items enclosed in parentheses).

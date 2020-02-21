@@ -2,5 +2,7 @@
 
 ## `unsafe.SizeOf`, `Alignof`, and `Offsetof`
 
+### `unsafe.SizeOf`
+
 - TODO
 

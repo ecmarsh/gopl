@@ -121,3 +121,70 @@ func Display(name string, x interface {}) {
   - When `fmt.Sprint` encounters a pointer, it breaks the recursion by printing the pointer's numeric value. Occasionally it gets stuck trying to print a slice or map that contains itself as an element, but rare cases don't warrant the considerable extra trouble of handling cycles.
 
 - See [Encoding S-Expressions](./sexpr) example for another way of handling additional constructs such as `integer`, string with Go style quotations, symbols with unquoted names, and a list (zero or more items enclosed in parentheses).
+
+## Setting Variables with `reflect.Value`
+
+- So far, we've seen how to interpret values, but the point of knowing how to do this is to _change_ them.
+- A variable is an _addressable_ storage location that contains a value, and its value may be updated through that address.
+- With `reflect.Values`, some are addressable while others are not. For example:
+
+```go
+x := 2                   // value type  variable?
+a := reflect.ValueOf(2)  // 2     int   no
+b := reflect.ValueOf(x)  // 2     int   no
+c := reflect.ValueOf(&x) // &x    *int  no
+d := c.Elem()            // 2     int   yes (x)
+```
+
+- No `reflect.Value` returned by `reflect.ValueOf(x)` is addressable. But `d`, derived from `c` by dereferencing the pointer within it, refers to a variable and and is thus an addressable `Value` for any variable x.
+- To determine if a `reflect.Value` is addressable, we can use the method `CanAddr`:
+
+```go
+fmt.Println(a.CanAddr()) // "false"
+fmt.Println(b.CanAddr()) // "false"
+fmt.Println(c.CanAddr()) // "false"
+fmt.Println(d.CanAddr()) // "true"
+```
+
+- We obtain an addressable `reflect.Value` whenever we indirect through a pointer, even if we started from a non-addressable `Value`.
+  - `reflect.ValueOf(e).Index(i)` refers to a variable, and is thus addressableeven if `reflect.ValueOf(e)` is not.
+- To recover the variable from an addressable `reflect.Value` requires three steps.
+  - First, call `Addr()`, which returns a `Value` holding a pointer to the variable.
+  - Second, call `Interface()` on the `Value`, which returns an `interface{}` value containing the pointer.
+  - Finally, if we know type of variable, we can use type assertion to retrieve the contents of the interface as an ordinary pointer and update the variable through the pointner:
+  
+  ```go
+  x := 2 
+  d := reflect.ValueOf(&x).Elem()   // d refers to the variable x
+  px := d.Addr().Interface().(*int) // px := &x
+  *px = 3                           // x = 3
+  fmt.Println(x)                    // "3
+
+  // or update the variable referred to by an
+  // addressable `reflect.Value` directly,
+  // without using a pointer by calling `reflect.Value.Set`
+  d.Set(reflect.ValueOf(4))
+  fmt.Println(x) // "4"
+
+  // It is crucial to make sure the value is assignable
+  // to the type of the variable or causes a panic:
+  d.Set(reflect.ValueOf(int64(5))) // panic: int64 is not assignable to int
+
+  // calling `Set` on a non-addressable reflect.Value panics too
+  x := 2
+  b := reflect.ValueOf(x)
+  b.Set(reflect.ValueOf(x))
+  b.Set(reflect.ValueOf(3)) // panic: Set using unaddr val
+
+  // Variants of Set exist for certain groups of basic types: 
+  d := reflect.ValueOf(&x).Elem()
+  d.SetInt(3)
+  fmt.Println(x) // "3"
+  ```
+
+- The specialized methods are somehwat more forgiving. For example, `SetInt` will succeed so long as the variable's type is some kind of signed integer, or even a named type whose underlying type is a signed integer. Even if the value is too large, ti will be truncated to fit.
+- An addressable `reflect.Value` records whether it was obtained by traversing an unexported struct field, and if so, disallows modification. `CanAddr` is not usually the right check to use before setting a variable. `CanSet` is better since it can report whether a variable is addressable _and_ settable:
+
+```go
+fmt.Println(fd.CanAddr(), fd.CanSet()) // "true false"
+```

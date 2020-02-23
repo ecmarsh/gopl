@@ -188,3 +188,55 @@ fmt.Println(d.CanAddr()) // "true"
 ```go
 fmt.Println(fd.CanAddr(), fd.CanSet()) // "true false"
 ```
+
+## Accesing Struct Field Tags
+
+- The first thing that most web server handlers do is extract request parameters into local variables. See [params example](./params/params.go) for the `Unpack()` method that uses struct field tags to make writing `HTTP handlers` more convenient.
+- Unpack builds a mapping from the _effective_ name of each field to the variable for that field. (note the effective name may differ from the actual name if the field has a tag.)
+- We use the `Field` method of `reflect.Type` to return a `reflect.StructField` that provides information about the type of each field such as its name, type and optional tag. The `Tag` field is a `reflect.StructTag`, which is a string type that provides a `Get` method to parse and extract the substring for a particular key, such as `http:...` in the example.
+
+## Displaying the Methods of a Type
+
+- Both `reflect.Type` and `reflect.Value` have a method called `Method`. Each `t.Method(i)` call returns an instance of `reflect.Method`, a struct type that describes the name and type of a single method and each `v.Method(i)` call returns a `reflect.Value` representing a method value ( a method bound to its receiver).
+- Using `reflect.Value.Call`, its possible to call `Values` of kind `Func`, but the program needs only its `Type`.
+
+```go
+package methods
+
+import (
+  "fmt"
+  "reflect"
+  "strings"
+)
+// Print prints the method set of the value x.
+func Print(x interface{}) {
+  v := reflect.ValueOf(x)
+  t := v.Type()
+  fmt.Printf("type %s\n", t)
+
+  for i := 0; i < v.NumMethod(); i++ {
+    methType := v.Method(i).Type()
+    fmt.Printf("func (%s) %s%s\n", t, t.Method(i).Name,
+        strings.TrimPrefix(methType.String(), "func"))
+  }
+}
+
+methods.Print(time.Hour)
+// type time.Duration
+// func (time.Duration) Hours() float64
+// func time.Duration) Minutes() float64
+// ...
+// func (time.Duration) String() string
+
+methods.Print(new(strings.replacer))
+// type *Strings.Replacer
+// func (*strings.Replacer) Replace(string) string
+// func (*strings.Replacer) WriteString(io.Writer, string) (int, error)
+```
+
+## Caution Around Reflection
+
+- Reflection-based code an be fragile and can be even more dangerous as compiler-type errors are reported during build time, but reflection errors are reported during execution as a panic.
+- The best way to avoid fragility is to ensure that the use of reflection si fully encapsulated within the package and if possible, avoid `reflect.Value` in favor of specific types in package's API.
+- Always carefully document the expected types and other invariants of functions that accept an `interface{}` or `reflect.Value`.
+- Testing is a particularly good fit for reflection since most tests use small data sets, but for functions on the critical path, reflection is best avoided.

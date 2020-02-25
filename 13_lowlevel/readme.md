@@ -50,4 +50,46 @@ Type | Size
 
 ## `unsafe.Pointer`
 
-- TODO
+- Recall that a pointer type are written `*T`, meaning "a pointer to a variable of type T".
+- `unsafe.Pointer` is a special pointer type that can hold the address of any variable. They are also comparable and may be compared with nil, its zero type.
+- `unsafe.Pointer` may be converted from and to ordinary pointers (not necessarily of the same type `*T`). For example, we can inspect the bit pattern of a floating-point variable by converting a `*float64` ptr to a `*uint64`:
+
+```go
+package math
+
+func Float64bits(f float64) uint64 {
+  return *(*uint64)(unsafe.Pointer(&f))
+}
+
+fmt.Printf("%#016x\n", Float64bits(1.0)) // "0x3ff0000000000000"
+```
+
+- Many `unsafe.Pointer` values are intermediaries for converting ordinary pointers to raw numeric addresses and back again. This example takes the address of a variable `x`, adds the offset of its `b` field, converts the resulting address to `*int16`, and through that pointer updates x.b:
+
+
+```go
+var x struct {
+  a bool
+  b int16
+  c []int
+}
+
+// equivalent to pb := &x.b
+pb := (*int16)(unsafe.Pointer(
+        uintptr(unsafe.Pointer(&x)) + unsafe.Offsetof(x.b)))
+*pb := 42
+
+fmt.Println(x.b) // "42"
+```
+
+- Many things can go wrong with conversions, especially after an `unsafe.Pointer` to `uintptr` conversion so best practice is to assume the bare minimum and treat all `uintptr` values as if they contain the _former_ address of a variable, and minimize the number of operations between converting an `unsafe.Pointer` to a `uintptr` and using that `uintptr`.
+- When calling a library function that returns a `uintptr`, the result should be immediately converted to an `unsafe.Pointer` to ensure that it continues to point to the same variable:
+
+```go
+package reflect
+
+func (Value) Pointer() uintptr
+func (Value) UnsafeAddr() uintptr
+func (Value) InterfaceData() [2]uintptr // (index 1)
+```
+

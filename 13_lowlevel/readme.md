@@ -93,3 +93,27 @@ func (Value) UnsafeAddr() uintptr
 func (Value) InterfaceData() [2]uintptr // (index 1)
 ```
 
+### Example: Deep Equivalence
+
+- `reflect.DeepEqual` reports whether two values are deeply equal. Basic values are compared via `==` and composite values are traversed recursively.
+- For example: to compare two `[]string` values:
+
+```go
+func TestSplit(t *testing.T) {
+  got := strings.Split("a:b:c", ":")
+  want := []string{"a", "b", "c"}
+  if !reflect.DeepEqual(got, want) { /* ... */ }
+}
+```
+
+- `DeepEqual` does not consider a nil map equal to a non-nil empty map, nor a nil slice equal to a non-nil empty one:
+
+```go
+var a, b []string = nil, []string{}
+fmt.Println(reflect.DeepEqual(a, b)) // "false"
+
+var c, d map[string]int = nil, make(map[string]int)
+fmt.Println(reflect.DeepEqual(c, d)) // "false"
+```
+
+- See [equal example](./equal) for a modified equivalence function that compares arbitrary values.

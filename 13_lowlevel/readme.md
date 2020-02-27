@@ -117,3 +117,16 @@ fmt.Println(reflect.DeepEqual(c, d)) // "false"
 ```
 
 - See [equal example](./equal) for a modified equivalence function that compares arbitrary values.
+
+## Calling C Code with `cgo`
+
+- Examples Go programs may need to use C lang based code include implementing a hardware driver implemented in C, querying an embedded database implemented in C++, or some linear algebra routines implemented by Fortran.
+- If the C library were small, it would simply be exported to Go.
+- If performance is not an issue, then the easiest thing to do is just call the code using the `os/exec` package.
+- But if performance is critical, `cgo`, a tool that creates Go bindings for C functions, can be used.
+
+- See [bzip](./bzip) for simple data compression exaple using `cgo`.
+  - `import "C"` causes `go build` to preprocess the file using `cgo` before the Go compiler sees it. `cgo` generates a temporary package that contains Go declarations corresponding to all of the C functions and types used by the file.
+  - Comments may also contain `#cgo` directives that specify extra options to the C toolchain. In the example, the `CLFLAGS` and `LDFLAGS` values contribute extra arguments to the compiler and linker commands so they can lcate the `bzlib.h` header file and the `libz2.a` archive library. Note that it assumes that these packages are installed under /usr on the system.
+
+- There is much we can do passing pointers from Go to C or vice versa: more documentation found at [golang.org/cmd/cgo](golang.org/cmdcgo).
